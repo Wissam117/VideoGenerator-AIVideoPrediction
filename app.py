@@ -4,16 +4,16 @@ from werkzeug.utils import secure_filename
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.utils import Sequence
+from tensorflow.keras import layers
 import cv2
 import numpy as np
-from tensorflow.keras import layers
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = "static/videos"  # Folder to save generated videos
+app.config['UPLOAD_FOLDER'] = "static/videos"
 app.config['ALLOWED_EXTENSIONS'] = {'mp4', 'avi', 'mov'}
 
-# Define Custom Layers for PredRNN
-@tf.keras.utils.register_keras_serializable()
+# Define ALL custom classes that were used during training
+@tf.keras.utils.register_keras_serializable(package="Custom")
 class ResidualBlock(layers.Layer):
     def __init__(self, filters, kernel_size=3, **kwargs):
         super(ResidualBlock, self).__init__(**kwargs)
@@ -61,8 +61,7 @@ class ResidualBlock(layers.Layer):
         })
         return config
 
-
-@tf.keras.utils.register_keras_serializable()
+@tf.keras.utils.register_keras_serializable(package="Custom")
 class ST_LSTM_Cell(tf.keras.layers.Layer):
     def __init__(self, filters, kernel_size, **kwargs):
         super(ST_LSTM_Cell, self).__init__(**kwargs)
@@ -107,7 +106,15 @@ class ST_LSTM_Cell(tf.keras.layers.Layer):
 
         return h_t, c_t, m_t
 
-@tf.keras.utils.register_keras_serializable()
+    def get_config(self):
+        config = super(ST_LSTM_Cell, self).get_config()
+        config.update({
+            'filters': self.filters,
+            'kernel_size': self.kernel_size
+        })
+        return config
+
+@tf.keras.utils.register_keras_serializable(package="Custom")
 class PredRNNLayer(tf.keras.layers.Layer):
     def __init__(self, filters, num_layers, input_frames, output_frames, kernel_size=(3, 3), **kwargs):
         super(PredRNNLayer, self).__init__(**kwargs)
@@ -177,6 +184,22 @@ class PredRNNLayer(tf.keras.layers.Layer):
         outputs = tf.stack(outputs, axis=1)
         return outputs
 
+    def get_config(self):
+        config = super(PredRNNLayer, self).get_config()
+        config.update({
+            'filters': self.filters,
+            'num_layers': self.num_layers,
+            'input_frames': self.input_frames,
+            'output_frames': self.output_frames,
+            'kernel_size': self.kernel_size
+        })
+        return config
+
+# Define the custom loss function that was used during training
+def custom_loss(y_true, y_pred):
+    mse_loss = tf.reduce_mean(tf.square(y_true - y_pred))
+    return mse_loss
+
 class DataGenerator(Sequence):
     def __init__(self, video_file, input_frames=10, output_frames=5, batch_size=1, img_size=(64, 64)):
         """
@@ -208,9 +231,11 @@ class DataGenerator(Sequence):
             ret, frame = cap.read()
             if not ret:
                 break
-            # Resize frame to the target size
+            # Resize frame to the target size and convert to grayscale (to match training)
             frame_resized = cv2.resize(frame, self.img_size)
-            frames.append(frame_resized)
+            frame_gray = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
+            frame_gray = frame_gray[:, :, None]  # Add channel dimension
+            frames.append(frame_gray)
         cap.release()
         return np.array(frames)
 
@@ -247,23 +272,49 @@ class DataGenerator(Sequence):
 
 def load_models():
     """
-    Loads all pre-trained models.
+    Loads all pre-trained models with proper custom objects.
     Returns:
-        convlstm_model, predrnn_model
+        convlstm_model, predrnn_model, vit_model
     """
+    # Enable unsafe deserialization for Lambda layers
+    tf.keras.config.enable_unsafe_deserialization()
+    
+    # Define all custom objects that might be used in any of the models
+    custom_objects = {
+        'ResidualBlock': ResidualBlock,
+        'PredRNNLayer': PredRNNLayer,
+        'ST_LSTM_Cell': ST_LSTM_Cell,
+        'custom_loss': custom_loss,
+    }
+    
     # Define the model paths
     convlstm_path = 'models/convlstm_best_model1.keras'
     predrnn_path = 'models/predrnn_best_model.keras'
+    vit_path = 'models/vit.keras'  # or 'models/final_vit_video_model.keras'
     
-    # Load models
-    convlstm_model = load_model(convlstm_path)
-    predrnn_model = load_model(predrnn_path, custom_objects={
-        'PredRNNLayer': PredRNNLayer,  # Register the custom layer here
-        'ST_LSTM_Cell': ST_LSTM_Cell,
-        'ResidualBlock': ResidualBlock,
-    })
+    try:
+        # Load models with custom objects
+        convlstm_model = load_model(convlstm_path, custom_objects=custom_objects)
+        print("ConvLSTM model loaded successfully")
+    except Exception as e:
+        print(f"Error loading ConvLSTM model: {e}")
+        convlstm_model = None
     
-    return convlstm_model, predrnn_model
+    try:
+        predrnn_model = load_model(predrnn_path, custom_objects=custom_objects)
+        print("PredRNN model loaded successfully")
+    except Exception as e:
+        print(f"Error loading PredRNN model: {e}")
+        predrnn_model = None
+    
+    try:
+        vit_model = load_model(vit_path, custom_objects=custom_objects)
+        print("ViT model loaded successfully")
+    except Exception as e:
+        print(f"Error loading ViT model: {e}")
+        vit_model = None
+    
+    return convlstm_model, predrnn_model, vit_model
 
 
 def generate_video(model, input_frames, output_frames, test_gen, video_filename, img_size=(64, 64)):
@@ -283,25 +334,33 @@ def generate_video(model, input_frames, output_frames, test_gen, video_filename,
         fps = 10
         video_writer = cv2.VideoWriter(video_filename, fourcc, fps, (img_size[1], img_size[0]))
         
-        # Write input frames
+        # Write input frames (convert from grayscale to BGR)
         for t in range(input_frames):
             frame = (X_test[0, t] * 255).astype(np.uint8)
-            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            video_writer.write(frame_bgr)
+            if frame.shape[-1] == 1:  # Grayscale
+                frame = cv2.cvtColor(frame.squeeze(), cv2.COLOR_GRAY2BGR)
+            else:
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            video_writer.write(frame)
         
-        # Write predicted frames
+        # Write predicted frames (convert from grayscale to BGR)
         for t in range(output_frames):
             frame = (Y_pred[0, t] * 255).astype(np.uint8)
-            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            video_writer.write(frame_bgr)
+            if frame.shape[-1] == 1:  # Grayscale
+                frame = cv2.cvtColor(frame.squeeze(), cv2.COLOR_GRAY2BGR)
+            else:
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            video_writer.write(frame)
         
         video_writer.release()
         return video_filename
     except Exception as e:
+        print(f"Error generating video: {e}")
         return None
 
 
-convlstm_model, predrnn_model = load_models()
+# Load models at startup
+convlstm_model, predrnn_model, vit_model = load_models()
 
 
 def allowed_file(filename):
@@ -333,6 +392,8 @@ def generate():
             generated_video = generate_video(convlstm_model, 10, 5, test_gen, video_output_filename)
         elif model_choice == 'predrnn':
             generated_video = generate_video(predrnn_model, 10, 5, test_gen, video_output_filename)
+        elif model_choice == 'visiontransformer':
+            generated_video = generate_video(vit_model, 10, 5, test_gen, video_output_filename)
         else:
             return "Invalid model selection"
         
@@ -346,4 +407,3 @@ def generate():
 
 if __name__ == '__main__':
     app.run(debug=True)
-

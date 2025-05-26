@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,32 +12,37 @@
         body {
             font-family: Arial, sans-serif;
             background-color: #f7f7f7;
-           
+
             margin: 0;
             padding: 0;
         }
+
         .container {
             width: 70%;
             margin: 0 auto;
             padding: 20px;
             background-color: rgb(0, 0, 0);
-            color:white;
+            color: white;
             opacity: 0.95;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             margin-top: 50px;
         }
+
         h1 {
             text-align: center;
             color: white;
         }
+
         label {
             font-weight: bold;
         }
+
         input[type="file"] {
             margin-top: 10px;
             margin-bottom: 20px;
         }
+
         button {
             padding: 10px;
             margin-top: 10px;
@@ -46,24 +52,29 @@
             border: 1px solid #ddd;
             background-color: #f0f0f0;
         }
+
         button {
             background-color: #832504;
             color: white;
             border: none;
             cursor: pointer;
         }
+
         button:hover {
             background-color: #45a049;
         }
+
         .video-container {
             margin-top: 30px;
             text-align: center;
         }
+
         video {
             width: 100%;
             max-width: 600px;
             margin: 20px 0;
         }
+
         .download-link {
             display: block;
             margin-top: 20px;
@@ -72,6 +83,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Generate Video Prediction</h1>
@@ -81,8 +93,10 @@
 
             <label for="model">Select Model:</label><br><br>
             <select name="model" id="model" required>
+                <option value="visiontransformer">VisionTransformer</option>
                 <option value="convlstm">ConvLSTM</option>
                 <option value="predrnn">PredRNN</option>
+
             </select><br><br>
 
             <button type="submit" class="modern-btn">Generate Video</button>
@@ -95,9 +109,11 @@
                 <source src="{{ url_for('static', filename='videos/' + video_url.split('/')[-1]) }}" type="video/mp4">
                 Your browser does not support the video tag.
             </video>
-            <a href="{{ url_for('static', filename='videos/' + video_url.split('/')[-1]) }}" class="download-link" download>Click here to download the generated video</a>
+            <a href="{{ url_for('static', filename='videos/' + video_url.split('/')[-1]) }}" class="download-link"
+                download>Click here to download the generated video</a>
         </div>
         {% endif %}
     </div>
 </body>
+
 </html>
