@@ -1,0 +1,122 @@
+/* Global styles */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    position: relative; /* Needed to position the pseudo-element */
+}
+
+/* Create the background image with overlay */
+body::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("https://thegradient.pub/content/images/size/w1600/2019/02/1_1mpE6fsq5LNxH31xeTWi5w.jpeg");
+    background-size: cover;  /* Ensures the image fills the screen */
+    background-position: center center;  /* Centers the image */
+    opacity: 0.5;  /* 50% opacity for the image */
+    z-index: -1;  /* Ensures the content appears above the background */
+}
+
+.container {
+    background-color: rgb(251, 235, 4);
+    padding: 30px;
+    color:white;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    max-width: 80%;
+    width: 100%;
+}
+
+h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+label {
+    font-size: 16px;
+    color: #555;
+    margin-bottom: 8px;
+    display: block;
+}
+
+input[type="file"],
+select {
+    padding: 10px;
+    width: 100%;
+    
+    margin-bottom: 15px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+input[type="file"] {
+    margin-left: 230px;
+    border: none;
+    appearance: none;  /* For consistent styling across browsers */
+    
+}
+
+select {
+    text-align: center; /* Centers the text horizontally */
+    text-align-last: center; /* Ensures the last line of text (selected option) is centered */
+    padding: 8px;
+    font-size: 16px;
+    margin-bottom: 30px;
+    align-items: center;
+    justify-content: center;
+    justify-items: center;
+    background-color: #007bff; /* Light blue background */
+    color: white; /* Text color */
+}
+
+/* Modern Button Style */
+.modern-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 25px;
+    font-size: 16px;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+.modern-btn:hover {
+    background-color: #0056b3;
+    transform: scale(1.05);
+}
+
+.modern-btn:active {
+    background-color: #003366;
+    transform: scale(0.98);
+}
+
+.modern-btn:focus {
+    outline: 2px solid #0056b3;  /* Custom focus outline */
+    outline-offset: 2px;
+}
+
+/* Video container styling */
+.video-container {
+    margin-top: 30px;
+    text-align: center;
+}
+
+video {
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
